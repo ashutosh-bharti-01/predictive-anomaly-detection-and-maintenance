@@ -5,8 +5,8 @@
 #define DHTPIN 4
 #define DHTTYPE DHT11
 
-const char* ssid = "Arpan_2.4G";
-const char* password = "Daisydoo1225@";
+const char* ssid = "wifi_name";
+const char* password = "wifi_pass";
 
 //  PC IP 
 const char* serverName = "http://192.168.1.4:8000/sensor";
