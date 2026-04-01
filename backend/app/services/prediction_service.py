@@ -1,5 +1,7 @@
 
 import numpy as np
+from sklearn.exceptions import NotFittedError
+
 
 WINDOW_SIZE = 10
 
@@ -76,8 +78,17 @@ def predict_future(df, model, steps=10):
         recent["pressure"].iloc[-1]
     ]]
 
-    pred = model.predict(future_point)[0]
-    score = model.decision_function(future_point)[0]
+    try:
+        pred = model.predict(future_point)[0]
+        score = model.decision_function(future_point)[0]
+    except NotFittedError:
+        return {
+            "risk": "low",
+            "slope": float(slope),
+            "next_temp": round(float(last_temp), 2),
+            "forecast": [],
+            "error": "model_not_trained"
+        }
 
     risk = "low"
     if pred == -1:

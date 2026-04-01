@@ -1,8 +1,22 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.routes import sensor, upload, history
+from app.api.routes import sensor, upload, history, generate, model
+from app.services.ml_service import load_model
 
-app = FastAPI()
+
+
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    load_model()
+    yield
+
+
+
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -15,3 +29,5 @@ app.add_middleware(
 app.include_router(sensor.router)
 app.include_router(upload.router)
 app.include_router(history.router)
+app.include_router(generate.router)
+app.include_router(model.router)
