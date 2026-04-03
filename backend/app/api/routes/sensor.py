@@ -31,6 +31,8 @@ def next_data():
     df["temperature"] = pd.to_numeric(df["temperature"], errors="coerce")
     df["vibration"] = pd.to_numeric(df["vibration"], errors="coerce")
     df["pressure"] = pd.to_numeric(df["pressure"], errors="coerce")
+    df["humidity"] = pd.to_numeric(df["humidity"], errors="coerce")
+
 
     df = df.dropna(subset=["temperature", "vibration", "pressure"])
     print("Raw rows:", len(data))

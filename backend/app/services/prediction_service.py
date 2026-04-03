@@ -133,9 +133,7 @@ def predict_future(df, model, steps=30):
             risk = "medium"
 
         return {
-            "next_temp": round(float(forecast[0]["temperature"]), 2),
             "forecast": forecast,
-            "time_axis_min": time_axis,
             "failure_in_minutes": failure_time,
             "failure_in_hours": failure_hours,
             "failure_reason": failure_reason,
@@ -147,7 +145,6 @@ def predict_future(df, model, steps=30):
         return {
             "risk": "low",
             "error": "model_not_trained",
-            "next_temp": forecast[0]["temperature"],
             "forecast": [],
             "failure_in_minutes": None,
             "failure_in_hours": None
