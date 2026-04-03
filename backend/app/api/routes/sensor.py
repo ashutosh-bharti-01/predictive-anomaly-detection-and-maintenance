@@ -20,7 +20,7 @@ def next_data():
     data = list(
         collection.find({}, {"_id": 0})
         .sort("timestamp", 1)
-        .limit(200)
+        # .limit(200)
     )
 
     if not data:
@@ -38,7 +38,8 @@ def next_data():
     if index >= len(df):
         index = 0
 
-    row = df.iloc[-1]
+    row = df.iloc[index]
+    index += 1
     ml_service.load_model()
 
     if not ml_service.is_trained or ml_service.should_retrain(df):
@@ -61,16 +62,7 @@ def next_data():
 
     explanation = generate_explanation(row, severity, prediction)
 
-    # collection.update_one(
-    #     {"timestamp": row["timestamp"]},
-    #     {"$set": {
-    #         "anomaly": pred,
-    #         "score": score,
-    #         "severity": severity,
-    #         "prediction": prediction,
-    #         "explanation": explanation
-    #     }}
-    # )
+
 
     return {
         **row.to_dict(),

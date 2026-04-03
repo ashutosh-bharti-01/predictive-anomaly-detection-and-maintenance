@@ -7,7 +7,15 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 MODEL_PATH = os.path.join(BASE_DIR, "models", "isolation_forest.pkl")
 last_trained_timestamp = None
 RETRAIN_THRESHOLD = 50
-
+FEATURE_COLUMNS = [
+    "temperature",
+    "vibration",
+    "pressure",
+    "humidity",
+    "rpm",
+    "voltage",
+    "current",
+]
 model = IsolationForest(contamination=0.08, random_state=42)
 
 is_trained = False
@@ -24,7 +32,7 @@ def train_model(df):
 
     df = df.tail(500)
 
-    X = df[["temperature", "vibration", "pressure"]]
+    X = df[FEATURE_COLUMNS].fillna(0)
 
     model.fit(X)
 
@@ -42,12 +50,20 @@ def detect_anomaly(row):
     if not is_trained:
         return 1, 0.0
 
-    X = [[row["temperature"], row["vibration"], row["pressure"]]]
+    try:
+        X = [[
+            float(row.get(col, 0)) if row.get(col) is not None else 0.0
+            for col in FEATURE_COLUMNS
+        ]]
 
-    pred = model.predict(X)[0]
-    score = model.decision_function(X)[0]
+        pred = model.predict(X)[0]
+        score = model.decision_function(X)[0]
 
-    return int(pred), float(score)
+        return int(pred), float(score)
+
+    except Exception as e:
+        print("Detect anomaly error:", e)
+        return 1, 0.0
 
 
 def load_model():
@@ -55,6 +71,7 @@ def load_model():
 
     if os.path.exists(MODEL_PATH):
         model = joblib.load(MODEL_PATH)
+        is_trained = True
         is_trained = True
         print("✅ model loaded from disk")
     else:
