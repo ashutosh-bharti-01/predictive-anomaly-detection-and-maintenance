@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.routes import sensor, upload, history, generate, model
+from app.api.routes import sensor, upload, history, generate, model , train
 from app.services.ml_service import load_model
 
 
@@ -31,3 +31,4 @@ app.include_router(upload.router)
 app.include_router(history.router)
 app.include_router(generate.router)
 app.include_router(model.router)
+app.include_router(train.router)
