@@ -2,8 +2,9 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.routes import sensor, upload, history, generate, model , train
+from app.api.routes import auth, sensor, upload, history, generate, model , train
 from app.services.ml_service import load_model
+from app.auth.middleware import AuthMiddleware
 
 
 
@@ -26,6 +27,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.add_middleware(AuthMiddleware, public_paths={"/auth/login"})
+
+app.include_router(auth.router)
 app.include_router(sensor.router)
 app.include_router(upload.router)
 app.include_router(history.router)
