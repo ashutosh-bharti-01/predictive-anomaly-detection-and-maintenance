@@ -1,5 +1,5 @@
 from fastapi import APIRouter, UploadFile, File
-from app.db.mongo import collection
+from app.db.mongo import data_collection as collection
 import app.services.ml_service as ml_service
 import pandas as pd
 from pathlib import Path
@@ -8,7 +8,7 @@ import os
 
 router = APIRouter()
 
-CSV_PATH = Path(__file__).resolve().parents[3] / "sensor_data.csv"
+CSV_PATH = Path(__file__).resolve().parents[2] / "sensor_data.csv"
 
 
 @router.post("/train-model")
