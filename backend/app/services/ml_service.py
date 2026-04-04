@@ -1,12 +1,13 @@
 import numpy as np
 from sklearn.ensemble import IsolationForest
+from sklearn.preprocessing import StandardScaler
 import joblib
 import os
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 MODEL_PATH = os.path.join(BASE_DIR, "models", "isolation_forest.pkl")
-last_trained_timestamp = None
-RETRAIN_THRESHOLD = 50
+scaler = StandardScaler()
+
 FEATURE_COLUMNS = [
     "temperature",
     "vibration",
@@ -16,67 +17,68 @@ FEATURE_COLUMNS = [
     "voltage",
     "current",
 ]
-model = IsolationForest(contamination=0.08, random_state=42)
+
+# ✅ Lower contamination (more realistic)
+model = IsolationForest(contamination=0.005, random_state=42)
 
 is_trained = False
 
 
+# =========================
+# 🔥 TRAIN MODEL
+# =========================
 def train_model(df):
-    global is_trained, last_trained_timestamp
+    global is_trained
 
-    print("🚀 training model with rows:", len(df))
+    print("🚀 Training model...")
 
-    if len(df) < 20:
-        print("not enough data")
+    if len(df) < 50:
+        print("❌ Not enough data")
         return
 
-    df = df.tail(500)
+    if "anomaly" in df.columns:
+        df = df[df["anomaly"] == 0]
+
+
+    if len(df) < 30:
+        print("❌ Not enough NORMAL data")
+        return
 
     X = df[FEATURE_COLUMNS].fillna(0)
-
-    model.fit(X)
-
-    print("💾 saving model...")
+    X_scaled = scaler.fit_transform(X)
+    model.fit(X_scaled)
 
     os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
-    joblib.dump(model, MODEL_PATH)
+    joblib.dump((model, scaler), MODEL_PATH)
 
     is_trained = True
-    last_trained_timestamp = df["timestamp"].max()
-    print("✅ model trained successfully. is_trained =", is_trained, " last_trained_timestamp =", last_trained_timestamp)
+
+    print(f"✅ Model trained on {len(df)} normal rows")
 
 
-def detect_anomaly(row):
-    if not is_trained:
-        return 1, 0.0
-
-    try:
-        X = [[
-            float(row.get(col, 0)) if row.get(col) is not None else 0.0
-            for col in FEATURE_COLUMNS
-        ]]
-
-        pred = model.predict(X)[0]
-        score = model.decision_function(X)[0]
-
-        return int(pred), float(score)
-
-    except Exception as e:
-        print("Detect anomaly error:", e)
-        return 1, 0.0
-
-
+# =========================
+# 🔍 LOAD MODEL
+# =========================
 def load_model():
-    global model, is_trained
+    global model, scaler, is_trained
 
     if os.path.exists(MODEL_PATH):
-        model = joblib.load(MODEL_PATH)
-        is_trained = True
-        is_trained = True
-        print("✅ model loaded from disk")
-    else:
-        print("⚠️ no saved model found")
+        loaded = joblib.load(MODEL_PATH)
 
+        if isinstance(loaded, tuple):
+            model, scaler = loaded
+        else:
+            model = loaded
+            print("⚠️ Old model detected (no scaler). Retrain recommended.")
+
+        is_trained = True
+        print("✅ Model loaded from disk")
+
+    else:
+        print("⚠️ No saved model found")
+# =========================
+# 🔍 ENSURE MODEL (ONE TIME)
+# =========================
 def ensure_model(df):
     global is_trained
 
@@ -88,28 +90,28 @@ def ensure_model(df):
     if is_trained:
         return
 
-    print("⚠️ model not found. Training now...")
+    print("⚠️ Model not found → training...")
     train_model(df)
 
 
-def should_retrain(df):
-    global last_trained_timestamp
+# =========================
+# ANOMALY DETECTION
+# =========================
+def detect_anomaly(row):
+    if not is_trained:
+        return 1, 0.0
 
-    if df.empty:
-        return False
+    try:
+        X = [[
+            float(row.get(col, 0)) if row.get(col) is not None else 0.0
+            for col in FEATURE_COLUMNS
+        ]]
+        X_scaled = scaler.transform(X)
+        pred = model.predict(X_scaled)[0]
+        score = model.decision_function(X_scaled)[0]
 
-    latest_ts = df["timestamp"].max()
+        return int(pred), float(score)
 
-    # First time → train
-    if last_trained_timestamp is None:
-        return True
-
-    # Count new rows since last training
-    new_rows = df[df["timestamp"] > last_trained_timestamp]
-
-    if len(new_rows) >= RETRAIN_THRESHOLD:
-        print(f"🔥 New data detected: {len(new_rows)} rows → retrain")
-        return True
-
-    print(f"⏭️ Skipping retrain. New rows: {len(new_rows)}")
-    return False
+    except Exception as e:
+        print("Detect anomaly error:", e)
+        return 1, 0.0

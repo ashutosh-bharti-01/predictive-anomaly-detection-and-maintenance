@@ -1,9 +1,9 @@
 import numpy as np
 from sklearn.exceptions import NotFittedError
+from statsmodels.tsa.arima.model import ARIMA
 
 WINDOW_SIZE = 10
 TIME_INTERVAL_MIN = 5
-FAILURE_TEMP = 120
 
 FEATURE_COLUMNS = [
     "temperature",
@@ -55,25 +55,25 @@ def compute_feature_slopes(df):
 
 
 def predict_future(df, model, steps=30):
+    FAILURE_TEMP = df["temperature"].quantile(0.98)
     if len(df) < WINDOW_SIZE:
         last_temp = df["temperature"].iloc[-1] if len(df) > 0 else 0
 
         return {
-            "risk": "low",
-            "slope": 0.0,
-            "next_temp": round(float(last_temp), 2),
             "forecast": [],
             "failure_in_minutes": None,
-            "failure_in_hours": None
+            "failure_in_hours": None,
+            "failure_reason": None,
+            "risk": "low",
+            "next_temp": round(float(last_temp), 2)
         }
 
     recent = df.tail(WINDOW_SIZE)
-
-    # 🔹 Base state
     base_row = recent.iloc[-1].to_dict()
 
-    # 🔹 Compute slopes for ALL features
-    feature_slopes = compute_feature_slopes(recent)
+    # 🔥 ARIMA forecast
+    temp_series = recent["temperature"]
+    temp_forecast = forecast_temperature_arima(temp_series, steps)
 
     forecast = []
     time_axis = []
@@ -81,71 +81,72 @@ def predict_future(df, model, steps=30):
     failure_time = None
     failure_reason = None
 
-    try:
-        for i in range(steps):
-            future_row = {}
+    for i in range(steps):
+        future_row = {}
 
-            # 🔥 Generate full future state
-            for col in FEATURE_COLUMNS:
+        for col in FEATURE_COLUMNS:
+
+            if col == "temperature":
+                future_val = temp_forecast[i]
+            else:
                 base_val = float(base_row.get(col, 0))
-                slope_val = feature_slopes.get(col, 0)
-
+                slope_val = 0
                 future_val = base_val + slope_val * (i + 1)
-                future_row[col] = future_val
 
-            forecast.append({
-                col: round(float(future_row[col]), 2)
-                for col in FEATURE_COLUMNS
-            })
+            future_row[col] = future_val
 
-            minutes = (i + 1) * TIME_INTERVAL_MIN
-            time_axis.append(minutes)
+        forecast.append({
+            col: round(float(future_row[col]), 2)
+            for col in FEATURE_COLUMNS
+        })
 
-            # 🔥 Full feature vector for ML
-            future_vector = [
-                float(future_row[col]) for col in FEATURE_COLUMNS
-            ]
+        minutes = (i + 1) * TIME_INTERVAL_MIN
+        time_axis.append(minutes)
 
-            pred = model.predict([future_vector])[0]
-            score = model.decision_function([future_vector])[0]
-
-            # 🔥 HYBRID FAILURE LOGIC
-            if failure_time is None:
-
-                if pred == -1:
-                    failure_time = minutes
-                    failure_reason = "ml_anomaly"
-
-                elif future_row["temperature"] >= FAILURE_TEMP:
-                    failure_time = minutes
-                    failure_reason = "threshold_breach"
-
-        failure_hours = round(failure_time / 60, 2) if failure_time else None
-
-        # 🔥 Risk classification
         if failure_time is None:
-            risk = "low"
-        elif failure_hours < 2:
-            risk = "critical"
-        elif failure_hours < 6:
-            risk = "high"
-        else:
-            risk = "medium"
 
-        return {
-            "forecast": forecast,
-            "failure_in_minutes": failure_time,
-            "failure_in_hours": failure_hours,
-            "failure_reason": failure_reason,
-            "risk": risk,
-            "slope": float(feature_slopes.get("temperature", 0))
-        }
+            if future_row["temperature"] >= FAILURE_TEMP:
+                failure_time = minutes
+                failure_reason = "threshold_breach"
 
-    except NotFittedError:
-        return {
-            "risk": "low",
-            "error": "model_not_trained",
-            "forecast": [],
-            "failure_in_minutes": None,
-            "failure_in_hours": None
-        }
+    failure_hours = round(failure_time / 60, 2) if failure_time else None
+
+    # 🔥 Risk logic
+    if failure_time is None:
+        risk = "low"
+    elif failure_hours < 12:
+        risk = "critical"
+    elif failure_hours < 48:
+        risk = "high"
+    else:
+        risk = "medium"
+
+    return {
+        # "forecast": forecast,
+        "failure_in_minutes": failure_time,
+        "failure_in_hours": failure_hours,
+        "failure_reason": failure_reason,
+        "risk": risk,
+        "next_temp": round(float(temp_forecast[0]), 2)
+    }
+def forecast_temperature_arima(series, steps):
+    try:
+        series = series.astype(float).dropna()
+
+        if len(series) < 20:
+            raise Exception("Not enough data - arima")
+
+        # (p,d,q) = (2,1,2) → safe default
+        model = ARIMA(series, order=(2, 1, 2))
+        model_fit = model.fit()
+
+        forecast = model_fit.forecast(steps=steps)
+
+        return forecast.tolist()
+
+    except Exception as e:
+        print("arima fallback:", e)
+
+        # fallback → simple slope
+        last = series.iloc[-1]
+        return [last for _ in range(steps)]

@@ -1,72 +1,123 @@
-
-from fastapi import APIRouter
+from fastapi import APIRouter, UploadFile, File
 from app.db.mongo import collection
 import app.services.ml_service as ml_service
 import app.services.prediction_service as prediction_service
 from app.services.ai_service import generate_explanation
 import pandas as pd
-from app.utils.stats import update_stats, compute_z
-
-RETRAIN_INTERVAL = 50
+from pathlib import Path
+import io
 
 router = APIRouter()
 
-index = 0
+CSV_PATH = Path(__file__).resolve().parents[3] / "sensor_data.csv"
 
-@router.get("/next")
-def next_data():
-    global index
+# 🔥 Load model once
+ml_service.load_model()
 
-    data = list(
-        collection.find({}, {"_id": 0})
-        .sort("timestamp", 1)
-        # .limit(200)
-    )
 
-    if not data:
-        return {"error": "No data in DB"}
+@router.post("/predict")
+async def predict_data(file: UploadFile = File(None)):
 
-    df = pd.DataFrame(data)
+    df = None
+    source_used = None
 
-    df["temperature"] = pd.to_numeric(df["temperature"], errors="coerce")
-    df["vibration"] = pd.to_numeric(df["vibration"], errors="coerce")
-    df["pressure"] = pd.to_numeric(df["pressure"], errors="coerce")
-    df["humidity"] = pd.to_numeric(df["humidity"], errors="coerce")
+    # =========================
+    # 🔥 1. Uploaded CSV (TOP PRIORITY)
+    # =========================
+    if file is not None and file.filename:
+        try:
+            contents = await file.read()
+            print("📄 Uploaded file size:", len(contents))
+            if not contents:
+                return {"error": "Uploaded file is empty"}
 
+            decoded = contents.decode("utf-8").strip()
+
+            if not decoded:
+                return {"error": "Uploaded file has no content"}
+
+            df = pd.read_csv(io.StringIO(decoded))
+
+            if df.empty or len(df.columns) == 0:
+                return {"error": "CSV has no valid columns/data"}
+
+        except Exception as e:
+            return {"error": f"Invalid CSV file: {str(e)}"}
+        source_used = "uploaded_csv"
+        print("📤 Using UPLOADED CSV")
+
+    # =========================
+    # 🔥 2. Local CSV
+    # =========================
+    elif CSV_PATH.exists():
+        df = pd.read_csv(CSV_PATH)
+        source_used = "local_csv"
+        print("📁 Using LOCAL CSV")
+
+    # =========================
+    # 🔥 3. MongoDB fallback
+    # =========================
+    else:
+        data = list(
+            collection.find({}, {"_id": 0})
+            .sort("timestamp", 1)
+        )
+
+        if not data:
+            return {"error": "No data in CSV or DB"}
+
+        df = pd.DataFrame(data)
+        source_used = "mongodb"
+        print("🗄 Using DB")
+
+    # =========================
+    # 🔹 CLEAN DATA
+    # =========================
+    for col in [
+        "temperature", "vibration", "pressure",
+        "humidity", "rpm", "voltage", "current"
+    ]:
+        df[col] = pd.to_numeric(df.get(col, 0), errors="coerce")
 
     df = df.dropna(subset=["temperature", "vibration", "pressure"])
-    print("Raw rows:", len(data))
-    print("After df:", len(df))
-    if index >= len(df):
-        index = 0
 
-    row = df.iloc[index]
-    index += 1
-    ml_service.load_model()
+    print("Rows used:", len(df))
 
-    if not ml_service.is_trained or ml_service.should_retrain(df):
-        print("Before training, is_trained =", ml_service.is_trained)
-        print("⚠️ Model not found or new data is found, training now...")
-        ml_service.train_model(df)
-        print("After training, is_trained =", ml_service.is_trained)
+    if len(df) == 0:
+        return {"error": "No valid data after cleaning"}
 
+    # =========================
+    # 🔥 USE LATEST ROW
+    # =========================
+    row = df.iloc[-1]
 
-    if index % 50 == 0:
-        update_stats(df)
+    # =========================
+    # 🔥 MODEL (NO RETRAIN LOOP)
+    # =========================
+    ml_service.ensure_model(df)
 
-    z = compute_z(row["temperature"])
-
+    # =========================
+    # 🔍 ANOMALY DETECTION
+    # =========================
     pred, score = ml_service.detect_anomaly(row)
 
     severity = "critical" if pred == -1 else "normal"
 
-    prediction = prediction_service.predict_future(df, ml_service.model)
+    # =========================
+    # 🔮 PREDICTION (ARIMA + ML)
+    # =========================
+    prediction = prediction_service.predict_future(
+        df,
+        ml_service.model
+    )
 
+    # =========================
+    # 🧠 EXPLANATION
+    # =========================
     explanation = generate_explanation(row, severity, prediction)
 
-
-
     return {
+        "source": source_used,
         **row.to_dict(),
         "anomaly": pred,
         "score": score,
