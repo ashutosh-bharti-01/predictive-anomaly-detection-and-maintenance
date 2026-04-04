@@ -22,7 +22,7 @@ async def predict_data(file: UploadFile = File(None)):
     source_used = None
 
     # =========================
-    # 🔥 1. Uploaded CSV (TOP PRIORITY)
+    # Uploaded CSV
     # =========================
     if file is not None and file.filename:
         try:
@@ -47,7 +47,7 @@ async def predict_data(file: UploadFile = File(None)):
         print("📤 Using UPLOADED CSV")
 
     # =========================
-    # 🔥 2. Local CSV
+    # Local CSV
     # =========================
     elif CSV_PATH.exists():
         df = pd.read_csv(CSV_PATH)
@@ -55,7 +55,7 @@ async def predict_data(file: UploadFile = File(None)):
         print("📁 Using LOCAL CSV")
 
     # =========================
-    # 🔥 3. MongoDB fallback
+    # MongoDB fallback
     # =========================
     else:
         data = list(
@@ -87,24 +87,24 @@ async def predict_data(file: UploadFile = File(None)):
         return {"error": "No valid data after cleaning"}
 
     # =========================
-    # 🔥 USE LATEST ROW
+    # USE LATEST ROW
     # =========================
     row = df.iloc[-1]
 
     # =========================
-    # 🔥 MODEL (NO RETRAIN LOOP)
+    # MODEL (NO RETRAIN LOOP)
     # =========================
     ml_service.ensure_model(df)
 
     # =========================
-    # 🔍 ANOMALY DETECTION
+    # ANOMALY DETECTION
     # =========================
     pred, score = ml_service.detect_anomaly(row)
 
     severity = "critical" if pred == -1 else "normal"
 
     # =========================
-    # 🔮 PREDICTION (ARIMA + ML)
+    # PREDICTION (ARIMA + ML)
     # =========================
     prediction = prediction_service.predict_future(
         df,
@@ -112,7 +112,7 @@ async def predict_data(file: UploadFile = File(None)):
     )
 
     # =========================
-    # 🧠 EXPLANATION
+    # EXPLANATION
     # =========================
     explanation = generate_explanation(row, severity, prediction)
 

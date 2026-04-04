@@ -25,12 +25,12 @@ is_trained = False
 
 
 # =========================
-# 🔥 TRAIN MODEL
+# TRAIN MODEL
 # =========================
 def train_model(df):
     global is_trained
 
-    print("🚀 Training model...")
+    print("Training model...")
 
     if len(df) < 50:
         print("❌ Not enough data")

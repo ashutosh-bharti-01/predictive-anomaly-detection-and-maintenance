@@ -14,8 +14,7 @@ rpm = 1500
 voltage = 230
 current = 8
 
-for i in range(2000):  # large dataset
-    # small natural drift
+for i in range(2000):
     temp += np.random.normal(0, 0.2)
     vibration += np.random.normal(0, 0.01)
     pressure += np.random.normal(0, 0.1)

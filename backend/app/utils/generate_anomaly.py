@@ -14,7 +14,7 @@ rpm = 1500
 voltage = 230
 current = 8
 
-# 🔹 Thresholds (aligned with prediction logic)
+# 🔹 Thresholds
 FAILURE_TEMP = 120
 FAILURE_VIB = 5
 FAILURE_PRESSURE = 150
@@ -22,7 +22,7 @@ FAILURE_PRESSURE = 150
 for i in range(300):
 
     # =========================
-    # 🟢 PHASE 1: NORMAL (0–100)
+    # NORMAL (0–100)
     # =========================
     if i < 100:
         temp += np.random.normal(0, 0.2)
@@ -32,7 +32,7 @@ for i in range(300):
         anomaly = 0
 
     # =========================
-    # 🟡 PHASE 2: DEGRADATION (100–200)
+    # DEGRADATION (100–200)
     # =========================
     elif i < 200:
         temp += np.random.normal(0.3, 0.4)
@@ -43,7 +43,7 @@ for i in range(300):
         anomaly = 0  # still not failure
 
     # =========================
-    # 🔴 PHASE 3: FAILURE ZONE (200+)
+    # FAILURE ZONE (200+)
     # =========================
     else:
         temp += np.random.uniform(2, 5)

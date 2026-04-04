@@ -111,7 +111,7 @@ def predict_future(df, model, steps=30):
 
     failure_hours = round(failure_time / 60, 2) if failure_time else None
 
-    # 🔥 Risk logic
+    # Risk logic
     if failure_time is None:
         risk = "low"
     elif failure_hours < 12:
@@ -122,7 +122,7 @@ def predict_future(df, model, steps=30):
         risk = "medium"
 
     return {
-        # "forecast": forecast,
+        "forecast": forecast,
         "failure_in_minutes": failure_time,
         "failure_in_hours": failure_hours,
         "failure_reason": failure_reason,

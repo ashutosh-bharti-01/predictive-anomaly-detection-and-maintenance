@@ -14,21 +14,21 @@ current = 8
 
 for i in range(300):
 
-    # 🟢 Phase 1: Normal (0–150)
+    #  Normal (0–150)
     if i < 150:
         temp += np.random.normal(0, 0.2)
         vibration += np.random.normal(0, 0.01)
         pressure += np.random.normal(0, 0.1)
         rpm += np.random.normal(0, 5)
 
-    # 🟡 Phase 2: Degradation (150–230)
+    #  Degradation (150–230)
     elif i < 230:
         temp += np.random.normal(0.4, 0.2)
         vibration += np.random.normal(0.05, 0.02)
         pressure += np.random.normal(0.5, 0.2)
         rpm += np.random.normal(10, 5)
 
-    # 🔴 Phase 3: Failure zone (230–300)
+    #  Failure zone (230–300)
     else:
         temp += np.random.uniform(1.5, 3)
         vibration += np.random.uniform(0.2, 0.5)

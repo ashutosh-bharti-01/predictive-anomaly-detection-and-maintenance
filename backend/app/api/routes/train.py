@@ -19,7 +19,7 @@ async def train_model_route(file: UploadFile = File(None)):
         source_used = None
 
         # =========================
-        # 🔥 1. Uploaded CSV (TOP PRIORITY)
+        # Uploaded CSV (TOP PRIORITY)
         # =========================
         if file is not None:
             contents = await file.read()
@@ -28,7 +28,7 @@ async def train_model_route(file: UploadFile = File(None)):
             print("📤 Training from UPLOADED CSV")
 
         # =========================
-        # 🔥 2. Local CSV
+        # Local CSV
         # =========================
         elif CSV_PATH.exists():
             df = pd.read_csv(CSV_PATH)
@@ -36,7 +36,7 @@ async def train_model_route(file: UploadFile = File(None)):
             print("📁 Training from LOCAL CSV")
 
         # =========================
-        # 🔥 3. MongoDB fallback
+        # MongoDB fallback
         # =========================
         else:
             data = list(collection.find({}, {"_id": 0}))
@@ -72,7 +72,7 @@ async def train_model_route(file: UploadFile = File(None)):
             return {"error": "Not enough data to train"}
 
         # =========================
-        # 🔍 CHECK NORMAL DATA AVAILABILITY
+        # CHECK NORMAL DATA AVAILABILITY
         # =========================
         if "anomaly" in df.columns:
             normal_count = len(df[df["anomaly"] == 0])
@@ -86,7 +86,7 @@ async def train_model_route(file: UploadFile = File(None)):
             }
 
         # =========================
-        # 🔥 TRAIN MODEL
+        # TRAIN MODEL
         # =========================
         ml_service.train_model(df)
 
